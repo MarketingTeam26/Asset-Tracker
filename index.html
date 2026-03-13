@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Marketing Asset Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root {
     --ink: #1a1a2e;
@@ -516,6 +516,7 @@ async function connectSupabase() {
   const url = document.getElementById('sbUrl').value.trim();
   const key = document.getElementById('sbKey').value.trim();
   const errEl = document.getElementById('setupError');
+  const btn = document.querySelector('.setup-btn');
   errEl.style.display = 'none';
 
   if (!url || !key) {
@@ -524,21 +525,34 @@ async function connectSupabase() {
     return;
   }
 
+  // Check the library loaded
+  const sbLib = window.supabase || window.Supabase;
+  if (!sbLib || !sbLib.createClient) {
+    errEl.textContent = 'Supabase library failed to load. Please check your internet connection and refresh.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.textContent = '⏳ Connecting…';
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+
   try {
-    supabase = window.supabase.createClient(url, key);
-    // Test connection
+    supabase = sbLib.createClient(url, key);
     const { error } = await supabase.from('assets').select('id').limit(1);
     if (error) throw error;
 
-    // Save creds for this session
     sessionStorage.setItem('sb_url', url);
     sessionStorage.setItem('sb_key', key);
 
     document.getElementById('setupScreen').style.display = 'none';
     await loadAndRender();
   } catch(e) {
-    errEl.textContent = 'Could not connect: ' + (e.message || 'Check your URL and key, and make sure you ran the SQL setup.');
+    errEl.textContent = 'Could not connect: ' + (e.message || 'Check your URL and key, and make sure you ran the SQL setup in Supabase.');
     errEl.style.display = 'block';
+    btn.textContent = 'Connect & Launch →';
+    btn.disabled = false;
+    btn.style.opacity = '1';
   }
 }
 
@@ -952,6 +966,13 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 
 // Auto-reconnect if creds saved in session
 (function() {
+  // Check library loaded
+  const sbLib = window.supabase || window.Supabase;
+  if (!sbLib) {
+    document.getElementById('setupError').textContent = '⚠️ Supabase library failed to load. Please check your internet connection and refresh.';
+    document.getElementById('setupError').style.display = 'block';
+    document.querySelector('.setup-btn').disabled = true;
+  }
   const url = sessionStorage.getItem('sb_url');
   const key = sessionStorage.getItem('sb_key');
   if (url && key) {
